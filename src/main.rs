@@ -1,44 +1,5 @@
 pub(crate) use hex::*;
-use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
-
 pub(crate) mod hex;
-
-/**
- * STM32G4xx default CRC32 polynomial.
- */
-const CUSTOM_ALG: crc::Algorithm<u32> = crc::Algorithm {
-    width: 32,
-    poly: 0x04C1_1DB7,
-    init: 0xFFFF_FFFF,
-    refin: false,
-    refout: false,
-    xorout: 0x0000_0000,
-    check: 0x0000_0000,   // todo ...
-    residue: 0x0000_0000, // todo ...
-};
-
-const MAX_DATA_LENGTH: usize = 200;
-
-/**
- * Packet format for sending firmware updates, via USB.
- */
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[repr(C, packed)] // Keep the field order & packing (very important)
-pub struct FirmwareUpdatePacket {
-    boot_char: u8,   // should always be '*'
-    update_char: u8, // should always be 'u'
-    _dummy1: u16,    // *padding*
-    address: u32,    // destination address
-    data_length: u8, // num of byte of data in the data region of the packet
-    _dummy2: u8,     // *padding*
-    data_crc: u16,   // (CCITT) CRC 16 of data.
-    #[serde(with = "BigArray")]
-    data: [u8; MAX_DATA_LENGTH],
-    end_of_packet: u8, // should always be '\n'
-    _dummy3: u16,      // *padding*
-    _dummy4: u8,       // *padding*
-}
 
 fn crc_toying_about() {
     let crc = crc::Crc::<u32>::new(&CUSTOM_ALG);
@@ -60,7 +21,15 @@ fn main() {
         },
     );
     let mut records: Vec<ihex::Record> = reader.into_iter().filter_map(|x| x.ok()).collect();
-    let regions = build_regions(&mut records);
+    let mut regions = build_regions(&mut records);
+    if !regions.is_empty() {
+        println!("\nFound {} HEX regions", regions.len());
+    }
+    for r in regions.iter() {
+        println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
+    }
+
+    let mut regions = merge_regions(&mut regions);
     if !regions.is_empty() {
         println!("\nFound {} HEX regions", regions.len());
     }

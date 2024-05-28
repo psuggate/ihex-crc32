@@ -1,9 +1,64 @@
 use ihex::Record;
+use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
+use std::cmp::Ordering;
 
+/**
+ * STM32G4xx default CRC32 polynomial.
+ */
+pub const CUSTOM_ALG: crc::Algorithm<u32> = crc::Algorithm {
+    width: 32,
+    poly: 0x04C1_1DB7,
+    init: 0xFFFF_FFFF,
+    refin: false,
+    refout: false,
+    xorout: 0x0000_0000,
+    check: 0x0000_0000,   // todo ...
+    residue: 0x0000_0000, // todo ...
+};
+
+// Must be divisible by 8 (bytes), for the 'HAL_FLASH_Program(..)' routine.
+const MAX_DATA_LENGTH: usize = 200;
+
+/**
+ * Packet format for sending firmware updates, via USB.
+ */
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[repr(C, packed)] // Keep the field order & packing (very important)
+pub struct FirmwareUpdatePacket {
+    boot_char: u8,   // should always be '*'
+    update_char: u8, // should always be 'u'
+    _dummy1: u16,    // *padding*
+    address: u32,    // destination address
+    data_length: u8, // num of byte of data in the data region of the packet
+    _dummy2: u8,     // *padding*
+    data_crc: u16,   // (CCITT) CRC 16 of data.
+    #[serde(with = "BigArray")]
+    data: [u8; MAX_DATA_LENGTH],
+    end_of_packet: u8, // should always be '\n'
+    _dummy3: u16,      // *padding*
+    _dummy4: u8,       // *padding*
+}
+
+/**
+ * Represents a single contiguous region of 'u8' values, read from a HEX file.
+ */
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct Region {
     base: u32,
     data: Vec<u8>,
+}
+
+impl Ord for Region {
+    fn cmp(&self, other: &Region) -> Ordering {
+        self.base.cmp(&other.base)
+    }
+}
+
+impl PartialOrd for Region {
+    fn partial_cmp(&self, other: &Region) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Region {
@@ -24,6 +79,28 @@ impl Region {
 
     pub fn address(&self) -> u32 {
         self.base
+    }
+
+    pub fn chunks(&mut self, size: usize) -> Vec<(u32, Vec<u8>)> {
+        let mut addr = self.base;
+        let mut chunks = Vec::new();
+
+        while !self.data.is_empty() {
+            let chunk = self.data.drain(0..size).collect();
+            chunks.push((addr, chunk));
+            addr += size as u32;
+        }
+        chunks
+    }
+
+    // Todo:
+    pub fn merge(&mut self) {
+        todo!("Align & pad");
+    }
+
+    // Todo:
+    pub fn emit(&self) -> Vec<FirmwareUpdatePacket> {
+        todo!("Chunk, compute CCITT_CRC16, and build packets");
     }
 }
 
@@ -95,5 +172,115 @@ pub fn build_regions(records: &mut [Record]) -> Vec<Region> {
         }
         pointer = 0;
     }
+    regions.sort();
     regions
+}
+
+//
+// Todo:
+//  - merge regions if they are contiguous after aligning and padding to eight
+//    bytes, as this alignment is required for the STM32G4xx FLASH writer;
+//  - compute the image-lengths & CRC32 values using the padded/aligned image
+//    data ??
+//
+pub fn merge_regions(regions: &[Region]) -> Vec<Region> {
+    let mut result: Vec<Region> = Vec::new();
+    let mut iter = regions.iter();
+
+    let mut prev = if let Some(prev) = iter.next() {
+        prev.clone()
+    } else {
+        return result;
+    };
+
+    loop {
+        let mut curr = if let Some(curr) = iter.next() {
+            curr.clone()
+        } else {
+            // No more 'Region's
+            result.push(prev);
+            break;
+        };
+
+        // Compute the index of the last byte of the previous 'Region'
+        let last = prev.base as usize + prev.data.len() - 1;
+
+        // Compute the index of the start of the next 'u64'-aligned chunk, if
+        // 'Region's are contiguous
+        let next = (last / MAX_DATA_LENGTH + 1) * MAX_DATA_LENGTH;
+        let base = curr.base as usize;
+        println!(
+            "prev: 0x{:08X}, last: 0x{:08X}, next: 0x{:08X}, base: 0x{:08x}",
+            prev.base, last, next, base
+        );
+
+        if base <= next {
+            // Start of 'Region' is contiguous with the previous 'Region'
+            // once aligned and padded (if required)
+            let npad = base - last - 1;
+            let mut pads = vec![0; npad];
+            prev.data.append(&mut pads);
+            prev.data.append(&mut curr.data);
+            // todo!("Merge 'curr: Region' into 'prev: Region'");
+        } else {
+            // We are done with 'prev: Region', so
+            result.push(prev.clone());
+            prev = curr;
+        }
+    }
+    result
+}
+
+impl Region {
+    pub fn make_packets(&mut self) -> Vec<FirmwareUpdatePacket> {
+        let mut packets = Vec::new();
+        let mut addr = self.base;
+        let mut iter = self.data.chunks_exact(MAX_DATA_LENGTH).into_iter();
+
+        loop {
+            if let Some(c) = iter.next() {
+                let data: [u8; MAX_DATA_LENGTH] = c.try_into().unwrap();
+                let fwup = FirmwareUpdatePacket {
+                    boot_char: b'*',
+                    update_char: b'u',
+                    _dummy1: 0,
+                    address: addr,
+                    data_length: MAX_DATA_LENGTH as u8,
+                    _dummy2: 0,
+                    data_crc: 0xffff, // todo ...
+                    data,
+                    end_of_packet: b'\n',
+                    _dummy3: 0,
+                    _dummy4: 0,
+                };
+                packets.push(fwup);
+                addr += MAX_DATA_LENGTH as u32;
+            } else {
+                // let last: Vec<u8> = iter.remainder();
+                let last: &[u8] = iter.remainder();
+                if !last.is_empty() {
+                    let mut data: [u8; MAX_DATA_LENGTH] = [0; { MAX_DATA_LENGTH }];
+                    let mut temp = &mut data[0..last.len()];
+                    temp.copy_from_slice(&last);
+
+                    let fwup = FirmwareUpdatePacket {
+                        boot_char: b'*',
+                        update_char: b'u',
+                        _dummy1: 0,
+                        address: addr,
+                        data_length: MAX_DATA_LENGTH as u8,
+                        _dummy2: 0,
+                        data_crc: 0xffff, // todo ...
+                        data,
+                        end_of_packet: b'\n',
+                        _dummy3: 0,
+                        _dummy4: 0,
+                    };
+                    packets.push(fwup);
+                }
+                break;
+            }
+        }
+        packets
+    }
 }
