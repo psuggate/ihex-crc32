@@ -34,7 +34,7 @@ impl FirmwareUpdatePacket {
             update_char: b'u',
             _dummy1: 0,
             address: addr,
-            data_length: MAX_DATA_LENGTH as u8,
+            data_length: size as u8,
             _dummy2: 0,
             data_crc,
             data,
