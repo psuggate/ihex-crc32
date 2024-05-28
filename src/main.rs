@@ -37,6 +37,14 @@ fn main() {
         println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
     }
 
+    let packets = make_packets(&mut regions);
+    if !packets.is_empty() {
+        println!("\nFound {} HEX packets", packets.len());
+    }
+    for r in packets.iter() {
+        println!(" - Packet: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
+    }
+
     crc_toying_about();
 
     println!("Hello, world!");

@@ -40,6 +40,16 @@ pub struct FirmwareUpdatePacket {
     _dummy4: u8,       // *padding*
 }
 
+impl FirmwareUpdatePacket {
+    pub fn address(&self) -> u32 {
+        self.address
+    }
+
+    pub fn len(&self) -> usize {
+        self.data_length as usize
+    }
+}
+
 /**
  * Represents a single contiguous region of 'u8' values, read from a HEX file.
  */
@@ -81,26 +91,58 @@ impl Region {
         self.base
     }
 
-    pub fn chunks(&mut self, size: usize) -> Vec<(u32, Vec<u8>)> {
+    pub fn make_packets(&mut self) -> Vec<FirmwareUpdatePacket> {
+        let mut packets = Vec::new();
         let mut addr = self.base;
-        let mut chunks = Vec::new();
+        let mut iter = self.data.chunks_exact(MAX_DATA_LENGTH);
 
-        while !self.data.is_empty() {
-            let chunk = self.data.drain(0..size).collect();
-            chunks.push((addr, chunk));
-            addr += size as u32;
+        loop {
+            if let Some(c) = iter.next() {
+                let data: [u8; MAX_DATA_LENGTH] = c.try_into().unwrap();
+                let fwup = FirmwareUpdatePacket {
+                    boot_char: b'*',
+                    update_char: b'u',
+                    _dummy1: 0,
+                    address: addr,
+                    data_length: MAX_DATA_LENGTH as u8,
+                    _dummy2: 0,
+                    data_crc: 0xffff, // todo ...
+                    data,
+                    end_of_packet: b'\n',
+                    _dummy3: 0,
+                    _dummy4: 0,
+                };
+                packets.push(fwup);
+                addr += MAX_DATA_LENGTH as u32;
+            } else {
+                let mut last = Vec::with_capacity(MAX_DATA_LENGTH);
+                last.extend(iter.remainder());
+                let size = last.len();
+                assert!(size & 0x7 == 0);
+
+                if size > 0 {
+                    last.resize(MAX_DATA_LENGTH, 0);
+                    let data: [u8; MAX_DATA_LENGTH] = last.try_into().unwrap();
+
+                    let fwup = FirmwareUpdatePacket {
+                        boot_char: b'*',
+                        update_char: b'u',
+                        _dummy1: 0,
+                        address: addr,
+                        data_length: size as u8,
+                        _dummy2: 0,
+                        data_crc: 0xffff, // todo ...
+                        data,
+                        end_of_packet: b'\n',
+                        _dummy3: 0,
+                        _dummy4: 0,
+                    };
+                    packets.push(fwup);
+                }
+                break;
+            }
         }
-        chunks
-    }
-
-    // Todo:
-    pub fn merge(&mut self) {
-        todo!("Align & pad");
-    }
-
-    // Todo:
-    pub fn emit(&self) -> Vec<FirmwareUpdatePacket> {
-        todo!("Chunk, compute CCITT_CRC16, and build packets");
+        packets
     }
 }
 
@@ -167,9 +209,9 @@ pub fn build_regions(records: &mut [Record]) -> Vec<Region> {
         if !region.is_empty() {
             regions.push(region.clone());
             // Start a new region
-            region.base = segment;
             region.data = Vec::new();
         }
+        region.base = segment;
         pointer = 0;
     }
     regions.sort();
@@ -207,10 +249,11 @@ pub fn merge_regions(regions: &[Region]) -> Vec<Region> {
 
         // Compute the index of the start of the next 'u64'-aligned chunk, if
         // 'Region's are contiguous
-        let next = (last / MAX_DATA_LENGTH + 1) * MAX_DATA_LENGTH;
+        let next = (last + 8) & 0xfffffff8;
+        // let next = (last + 16) & 0xfffffff0;
         let base = curr.base as usize;
         println!(
-            "prev: 0x{:08X}, last: 0x{:08X}, next: 0x{:08X}, base: 0x{:08x}",
+            "prev: 0x{:08X}, last: 0x{:08X}, next: 0x{:08X}, base: 0x{:08X}",
             prev.base, last, next, base
         );
 
@@ -221,7 +264,6 @@ pub fn merge_regions(regions: &[Region]) -> Vec<Region> {
             let mut pads = vec![0; npad];
             prev.data.append(&mut pads);
             prev.data.append(&mut curr.data);
-            // todo!("Merge 'curr: Region' into 'prev: Region'");
         } else {
             // We are done with 'prev: Region', so
             result.push(prev.clone());
@@ -231,56 +273,12 @@ pub fn merge_regions(regions: &[Region]) -> Vec<Region> {
     result
 }
 
-impl Region {
-    pub fn make_packets(&mut self) -> Vec<FirmwareUpdatePacket> {
-        let mut packets = Vec::new();
-        let mut addr = self.base;
-        let mut iter = self.data.chunks_exact(MAX_DATA_LENGTH).into_iter();
+pub fn make_packets(regions: &mut [Region]) -> Vec<FirmwareUpdatePacket> {
+    let mut packets = Vec::new();
 
-        loop {
-            if let Some(c) = iter.next() {
-                let data: [u8; MAX_DATA_LENGTH] = c.try_into().unwrap();
-                let fwup = FirmwareUpdatePacket {
-                    boot_char: b'*',
-                    update_char: b'u',
-                    _dummy1: 0,
-                    address: addr,
-                    data_length: MAX_DATA_LENGTH as u8,
-                    _dummy2: 0,
-                    data_crc: 0xffff, // todo ...
-                    data,
-                    end_of_packet: b'\n',
-                    _dummy3: 0,
-                    _dummy4: 0,
-                };
-                packets.push(fwup);
-                addr += MAX_DATA_LENGTH as u32;
-            } else {
-                // let last: Vec<u8> = iter.remainder();
-                let last: &[u8] = iter.remainder();
-                if !last.is_empty() {
-                    let mut data: [u8; MAX_DATA_LENGTH] = [0; { MAX_DATA_LENGTH }];
-                    let mut temp = &mut data[0..last.len()];
-                    temp.copy_from_slice(&last);
-
-                    let fwup = FirmwareUpdatePacket {
-                        boot_char: b'*',
-                        update_char: b'u',
-                        _dummy1: 0,
-                        address: addr,
-                        data_length: MAX_DATA_LENGTH as u8,
-                        _dummy2: 0,
-                        data_crc: 0xffff, // todo ...
-                        data,
-                        end_of_packet: b'\n',
-                        _dummy3: 0,
-                        _dummy4: 0,
-                    };
-                    packets.push(fwup);
-                }
-                break;
-            }
-        }
-        packets
+    for r in regions.iter_mut() {
+        let mut fwups = r.make_packets();
+        packets.append(&mut fwups);
     }
+    packets
 }
