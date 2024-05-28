@@ -1,16 +1,6 @@
 pub(crate) use hex::*;
 pub(crate) mod hex;
 
-fn crc_toying_about() {
-    let crc = crc::Crc::<u32>::new(&CUSTOM_ALG);
-    let mut digest = crc.digest();
-    digest.update(b"123456789abcdef0");
-    let yummy = digest.finalize();
-    println!("\nComputing CRC32");
-    println!(" - CRC32: 0x{:08X}\n", yummy);
-    assert_eq!(yummy, 0xa19a6e15);
-}
-
 fn main() {
     let data = std::fs::read_to_string("data/example.hex").unwrap();
     let reader = ihex::Reader::new_with_options(
@@ -42,7 +32,12 @@ fn main() {
         println!("\nFound {} HEX packets", packets.len());
     }
     for r in packets.iter() {
-        println!(" - Packet: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
+        println!(
+            " - Packet: ADDR = {:08x}, SIZE = {}, CRC16 = 0x{:04X}",
+            r.address(),
+            r.len(),
+            r.crc16()
+        );
     }
 
     crc_toying_about();
