@@ -24,20 +24,20 @@ const MAX_DATA_LENGTH: usize = 200;
  * Packet format for sending firmware updates, via USB.
  */
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[repr(C, packed)] // Keep the field order (very important for firmware updates)
+#[repr(C, packed)] // Keep the field order & packing (very important)
 pub struct FirmwareUpdatePacket {
     boot_char: u8,   // should always be '*'
     update_char: u8, // should always be 'u'
-    dummy1: u16,     // *padding*
+    _dummy1: u16,    // *padding*
     address: u32,    // destination address
     data_length: u8, // num of byte of data in the data region of the packet
-    dummy2: u8,      // *padding*
-    data_crc: u16,   // (CCIT) CRC 16 of data.
+    _dummy2: u8,     // *padding*
+    data_crc: u16,   // (CCITT) CRC 16 of data.
     #[serde(with = "BigArray")]
     data: [u8; MAX_DATA_LENGTH],
     end_of_packet: u8, // should always be '\n'
-    dummy3: u16,       // *padding*
-    dummy4: u8,        // *padding*
+    _dummy3: u16,      // *padding*
+    _dummy4: u8,       // *padding*
 }
 
 fn crc_toying_about() {
