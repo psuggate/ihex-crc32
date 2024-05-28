@@ -18,6 +18,10 @@ impl Region {
         self.data.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     pub fn address(&self) -> u32 {
         self.base
     }
@@ -83,7 +87,7 @@ pub fn build_regions(records: &mut [Record]) -> Vec<Region> {
         }
 
         // Found a non-data record, so store the current 'Region', if non-zero.
-        if !region.data.is_empty() {
+        if !region.is_empty() {
             regions.push(region.clone());
             // Start a new region
             region.base = segment;

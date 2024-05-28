@@ -61,8 +61,11 @@ fn main() {
     );
     let mut records: Vec<ihex::Record> = reader.into_iter().filter_map(|x| x.ok()).collect();
     let regions = build_regions(&mut records);
+    if !regions.is_empty() {
+        println!("\nFound {} HEX regions", regions.len());
+    }
     for r in regions.iter() {
-        println!("Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
+        println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
     }
 
     crc_toying_about();
