@@ -1,0 +1,13 @@
+[package]
+name = "ihex-crc32"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+combine = "4.6.7"
+crc = "3.2.1"
+ihex = "3.0.0"
+serde = { version = "1.0.203", features = ["derive"] }
+serde-big-array = "0.5.1"
