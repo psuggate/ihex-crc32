@@ -1,4 +1,4 @@
-use crate::hexcrc::CUSTOM_ALG;
+use crate::hexcrc::calc_stm32_crc;
 use crate::packet::FirmwareUpdatePacket;
 
 /**
@@ -14,12 +14,7 @@ pub struct FirmwareUpdate {
 impl FirmwareUpdate {
     pub fn new(packets: Vec<FirmwareUpdatePacket>) -> Self {
         let length = packets.iter().fold(0, |s, x| s + x.len());
-        let crc = crc::Crc::<u32>::new(&CUSTOM_ALG);
-        let mut digest = crc.digest();
-        for p in packets.iter() {
-            digest.update(&p.to_vec());
-        }
-        let crc32 = digest.finalize();
+        let crc32 = calc_stm32_crc(&packets);
         Self {
             packets,
             length,

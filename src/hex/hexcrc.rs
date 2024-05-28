@@ -1,3 +1,5 @@
+use crate::packet::FirmwareUpdatePacket;
+
 /**
  * STM32G4xx default CRC32 polynomial.
  */
@@ -39,19 +41,11 @@ pub fn calc_ccitt_crc(data: &[u8], size: u32) -> u16 {
     crc
 }
 
-pub fn calc_stm32_crc(data: &[u8]) -> u32 {
+pub fn calc_stm32_crc(packets: &[FirmwareUpdatePacket]) -> u32 {
     let crc = crc::Crc::<u32>::new(&CUSTOM_ALG);
     let mut digest = crc.digest();
-    digest.update(data);
+    for p in packets.iter() {
+        digest.update(&p.to_vec());
+    }
     digest.finalize()
-}
-
-pub fn crc_toying_about() {
-    let crc = crc::Crc::<u32>::new(&CUSTOM_ALG);
-    let mut digest = crc.digest();
-    digest.update(b"123456789abcdef0");
-    let yummy = digest.finalize();
-    println!("\nComputing CRC32");
-    println!(" - CRC32: 0x{:08X}\n", yummy);
-    assert_eq!(yummy, 0xa19a6e15);
 }
