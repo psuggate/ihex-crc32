@@ -40,7 +40,9 @@ fn main() {
         );
     }
 
-    crc_toying_about();
-
-    println!("Hello, world!");
+    let update = FirmwareUpdate::new(packets);
+    println!("\nFirmware update:");
+    println!(" - Length: {}", update.len());
+    println!(" - CRC32:  0x{:08X}", update.crc32());
+    println!();
 }

@@ -39,6 +39,13 @@ pub fn calc_ccitt_crc(data: &[u8], size: u32) -> u16 {
     crc
 }
 
+pub fn calc_stm32_crc(data: &[u8]) -> u32 {
+    let crc = crc::Crc::<u32>::new(&CUSTOM_ALG);
+    let mut digest = crc.digest();
+    digest.update(data);
+    digest.finalize()
+}
+
 pub fn crc_toying_about() {
     let crc = crc::Crc::<u32>::new(&CUSTOM_ALG);
     let mut digest = crc.digest();

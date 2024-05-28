@@ -9,21 +9,21 @@ pub const MAX_DATA_LENGTH: usize = 200;
 /**
  * Packet format for sending firmware updates, via USB.
  */
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(C, packed)] // Keep the field order & packing (very important)
 pub struct FirmwareUpdatePacket {
-    pub boot_char: u8,   // should always be '*'
-    pub update_char: u8, // should always be 'u'
-    pub _dummy1: u16,    // *padding*
-    pub address: u32,    // destination address
-    pub data_length: u8, // num of byte of data in the data region of the packet
-    pub _dummy2: u8,     // *padding*
-    pub data_crc: u16,   // (CCITT) CRC 16 of data.
+    boot_char: u8,   // should always be '*'
+    update_char: u8, // should always be 'u'
+    _dummy1: u16,    // *padding*
+    address: u32,    // destination address
+    data_length: u8, // num of byte of data in the data region of the packet
+    _dummy2: u8,     // *padding*
+    data_crc: u16,   // (CCITT) CRC 16 of data.
     #[serde(with = "BigArray")]
-    pub data: [u8; MAX_DATA_LENGTH],
-    pub end_of_packet: u8, // should always be '\n'
-    pub _dummy3: u16,      // *padding*
-    pub _dummy4: u8,       // *padding*
+    data: [u8; MAX_DATA_LENGTH],
+    end_of_packet: u8, // should always be '\n'
+    _dummy3: u16,      // *padding*
+    _dummy4: u8,       // *padding*
 }
 
 impl FirmwareUpdatePacket {
@@ -54,5 +54,10 @@ impl FirmwareUpdatePacket {
 
     pub fn len(&self) -> usize {
         self.data_length as usize
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        let len = self.data_length as usize;
+        self.data[0..len].to_vec()
     }
 }
