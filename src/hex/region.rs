@@ -1,3 +1,12 @@
+//
+// Todo:
+//  - merge regions if they are contiguous after aligning and padding to eight
+//    bytes, as this alignment is required for the STM32G4xx FLASH writer;
+//  - we want a contiguous range from the lowest address to the highest address
+//    in order for the STM32 CRC core to be able to do the calculation in one
+//    step ??
+//  - OR, do we use multiple steps ??
+//
 use ihex::Record;
 use std::cmp::Ordering;
 
@@ -146,13 +155,6 @@ pub fn build_regions(records: &mut [Record]) -> Vec<Region> {
     regions
 }
 
-//
-// Todo:
-//  - merge regions if they are contiguous after aligning and padding to eight
-//    bytes, as this alignment is required for the STM32G4xx FLASH writer;
-//  - compute the image-lengths & CRC32 values using the padded/aligned image
-//    data ??
-//
 pub fn merge_regions(regions: &[Region]) -> Vec<Region> {
     let mut result: Vec<Region> = Vec::new();
     let mut iter = regions.iter();
@@ -178,12 +180,7 @@ pub fn merge_regions(regions: &[Region]) -> Vec<Region> {
         // Compute the index of the start of the next 'u64'-aligned chunk, if
         // 'Region's are contiguous
         let next = (last + 8) & 0xfffffff8;
-        // let next = (last + 16) & 0xfffffff0;
         let base = curr.base as usize;
-        println!(
-            "prev: 0x{:08X}, last: 0x{:08X}, next: 0x{:08X}, base: 0x{:08X}",
-            prev.base, last, next, base
-        );
 
         if base <= next {
             // Start of 'Region' is contiguous with the previous 'Region'
@@ -201,12 +198,31 @@ pub fn merge_regions(regions: &[Region]) -> Vec<Region> {
     result
 }
 
-pub fn make_packets(regions: &mut [Region]) -> Vec<FirmwareUpdatePacket> {
-    let mut packets = Vec::new();
-
-    for r in regions.iter_mut() {
-        let mut fwups = r.make_packets();
-        packets.append(&mut fwups);
+pub fn single_region(regions: &[Region]) -> Option<Region> {
+    if regions.is_empty() {
+        return None;
     }
-    packets
+    let mut iter = regions.iter();
+    let mut mono = if let Some(prev) = iter.next() {
+        prev.clone()
+    } else {
+        return None;
+    };
+    let mut last = mono.base as usize + mono.data.len();
+
+    loop {
+        let mut curr = if let Some(curr) = iter.next() {
+            curr.clone()
+        } else {
+            // No more 'Region's
+            break;
+        };
+        let next = curr.base as usize;
+        let npad = next - last;
+        let mut pads = vec![0; npad];
+        mono.data.append(&mut pads);
+        last += npad + curr.data.len();
+        mono.data.append(&mut curr.data);
+    }
+    Some(mono)
 }

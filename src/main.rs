@@ -27,19 +27,41 @@ fn main() {
         println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
     }
 
-    let packets = make_packets(&mut regions);
-    if !packets.is_empty() {
-        println!("\nFound {} HEX packets", packets.len());
-    }
-    for r in packets.iter() {
-        println!(
-            " - Packet: ADDR = {:08x}, SIZE = {}, CRC16 = 0x{:04X}",
-            r.address(),
-            r.len(),
-            r.crc16()
-        );
-    }
+    let packets = if let Some(mut r) = single_region(&regions) {
+        //
+        //  M O N O  !!
+        //
+        println!("\nBuild HEX mono-region");
+        println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
 
+        let packets = r.make_packets();
+        if !packets.is_empty() {
+            println!("\nFound {} HEX packets", packets.len());
+        }
+        for p in packets.iter() {
+            println!(
+                " - Packet: ADDR = {:08x}, SIZE = {}, CRC16 = 0x{:04X}",
+                p.address(),
+                p.len(),
+                p.crc16()
+            );
+        }
+        packets
+    } else {
+        let packets = make_packets(&mut regions);
+        if !packets.is_empty() {
+            println!("\nFound {} HEX packets", packets.len());
+        }
+        for p in packets.iter() {
+            println!(
+                " - Packet: ADDR = {:08x}, SIZE = {}, CRC16 = 0x{:04X}",
+                p.address(),
+                p.len(),
+                p.crc16()
+            );
+        }
+        packets
+    };
     let update = FirmwareUpdate::new(packets);
     println!("\nFirmware update:");
     println!(" - Length: {}", update.len());
