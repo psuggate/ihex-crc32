@@ -1,12 +1,3 @@
-//
-// Todo:
-//  - merge regions if they are contiguous after aligning and padding to eight
-//    bytes, as this alignment is required for the STM32G4xx FLASH writer;
-//  - we want a contiguous range from the lowest address to the highest address
-//    in order for the STM32 CRC core to be able to do the calculation in one
-//    step ??
-//  - OR, do we use multiple steps ??
-//
 use ihex::Record;
 use std::cmp::Ordering;
 
@@ -68,8 +59,7 @@ impl Region {
                     offset,
                     ref mut value,
                 } => {
-                    // Type: 0x00
-                    // Append data to the current region, if contiguous
+                    // Type: 0x00 -- Append data to current region, if contiguous
                     let offset = *offset as u32;
                     let length = value.len() as u32;
 
@@ -177,6 +167,7 @@ impl Region {
     }
 }
 
+// OBSOLETE
 pub fn merge_regions(regions: &[Region]) -> Vec<Region> {
     let mut result: Vec<Region> = Vec::new();
     let mut iter = regions.iter();

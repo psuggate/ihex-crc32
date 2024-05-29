@@ -14,6 +14,15 @@ pub const CUSTOM_ALG: crc::Algorithm<u32> = crc::Algorithm {
     residue: 0x0000_0000, // todo ...
 };
 
+pub fn calc_stm32_crc(packets: &[FirmwareUpdatePacket]) -> u32 {
+    let crc = crc::Crc::<u32>::new(&CUSTOM_ALG);
+    let mut digest = crc.digest();
+    for p in packets.iter() {
+        digest.update(&p.to_vec());
+    }
+    digest.finalize()
+}
+
 pub fn calc_ccitt_crc(data: &[u8], size: u32) -> u16 {
     let mut crc: u16 = 0xffff;
 
@@ -39,13 +48,4 @@ pub fn calc_ccitt_crc(data: &[u8], size: u32) -> u16 {
     }
 
     crc
-}
-
-pub fn calc_stm32_crc(packets: &[FirmwareUpdatePacket]) -> u32 {
-    let crc = crc::Crc::<u32>::new(&CUSTOM_ALG);
-    let mut digest = crc.digest();
-    for p in packets.iter() {
-        digest.update(&p.to_vec());
-    }
-    digest.finalize()
 }

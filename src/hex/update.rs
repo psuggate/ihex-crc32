@@ -2,7 +2,7 @@ use crate::hexcrc::calc_stm32_crc;
 use crate::packet::FirmwareUpdatePacket;
 
 /**
- * Complete update for an Lt Sensor.
+ * Complete firmware update.
  */
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct FirmwareUpdate {
@@ -21,11 +21,9 @@ impl FirmwareUpdate {
             crc32,
         }
     }
-
     pub fn len(&self) -> usize {
         self.length
     }
-
     pub fn crc32(&self) -> u32 {
         self.crc32
     }
