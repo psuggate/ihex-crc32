@@ -33,10 +33,10 @@ impl FirmwareUpdatePacket {
             boot_char: b'*',
             update_char: b'u',
             _dummy1: 0,
-            address: addr,
+            address: addr.swap_bytes(),
             data_length: size as u8,
             _dummy2: 0,
-            data_crc,
+            data_crc: data_crc.swap_bytes(),
             data,
             end_of_packet: b'\n',
             _dummy3: 0,
@@ -45,11 +45,11 @@ impl FirmwareUpdatePacket {
     }
 
     pub fn address(&self) -> u32 {
-        self.address
+        self.address.swap_bytes()
     }
 
     pub fn crc16(&self) -> u16 {
-        self.data_crc
+        self.data_crc.swap_bytes()
     }
 
     pub fn len(&self) -> usize {
@@ -59,5 +59,34 @@ impl FirmwareUpdatePacket {
     pub fn to_vec(&self) -> Vec<u8> {
         let len = self.data_length as usize;
         self.data[0..len].to_vec()
+    }
+}
+
+//----------------------------------------------------------------------------
+// Tests
+//----------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use crate::hexcrc::calc_ccitt_crc;
+    use crate::packet::{FirmwareUpdatePacket, MAX_DATA_LENGTH};
+
+    const TEST_ADDR: u32 = 0x0800c8000;
+
+    fn make_test_data() -> [u8; MAX_DATA_LENGTH] {
+        let mut test_data: [u8; MAX_DATA_LENGTH] = [0; MAX_DATA_LENGTH];
+        for i in 0..MAX_DATA_LENGTH {
+            test_data[i] = rand::random::<u8>();
+        }
+        test_data
+    }
+
+    #[test]
+    fn check_endianess_of_crc16_and_address() {
+        let tdata = make_test_data();
+        let crc16 = calc_ccitt_crc(&tdata, MAX_DATA_LENGTH as u32);
+        let packt = FirmwareUpdatePacket::new(TEST_ADDR, tdata, MAX_DATA_LENGTH);
+        assert!(crc16 == packt.crc16());
+        assert!(TEST_ADDR == packt.address());
     }
 }

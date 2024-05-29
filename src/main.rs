@@ -11,7 +11,7 @@ fn main() {
         },
     );
     let mut records: Vec<ihex::Record> = reader.into_iter().filter_map(|x| x.ok()).collect();
-    let regions = build_regions(&mut records);
+    let regions = Region::build_regions(&mut records);
     if !regions.is_empty() {
         println!("\nFound {} HEX regions", regions.len());
     }
@@ -27,7 +27,7 @@ fn main() {
         println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
     }
 
-    let packets = if let Some(mut r) = single_region(&regions) {
+    let packets = if let Some(mut r) = Region::single_region(&regions) {
         //
         //  M O N O  !!
         //

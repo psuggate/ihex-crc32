@@ -53,6 +53,100 @@ impl Region {
         self.base
     }
 
+    /**
+     * Build an array of (upto) 64 kB "regions" of firmware (binary-)data.
+     */
+    pub fn build_regions(records: &mut [Record]) -> Vec<Region> {
+        let mut regions: Vec<Region> = Vec::new();
+        let mut segment: u32 = 0;
+        let mut pointer: u32 = 0;
+        let mut region = Region::new(0);
+
+        for r in records.iter_mut() {
+            match r {
+                Record::Data {
+                    offset,
+                    ref mut value,
+                } => {
+                    // Type: 0x00
+                    // Append data to the current region, if contiguous
+                    let offset = *offset as u32;
+                    let length = value.len() as u32;
+
+                    if length > 0 {
+                        if region.data.is_empty() {
+                            // First data, so set full 32-bit address
+                            region.base += offset;
+                        } else if offset != pointer {
+                            // Data isn't contiguous, so store the current region,
+                            // and then start a new region
+                            regions.push(region.clone());
+                            region.base = segment + offset;
+                            region.data = Vec::new();
+                        }
+                        region.data.append(value);
+                        pointer = offset + length;
+                    }
+                    continue;
+                }
+                Record::ExtendedSegmentAddress(base) => {
+                    // Type: 0x02 -- Start a new region (even if contiguous)
+                    segment = (*base as u32) << 4;
+                }
+                Record::ExtendedLinearAddress(base) => {
+                    // Type: 0x04 -- Start a new region (even if contiguous)
+                    segment = (*base as u32) << 16;
+                }
+                Record::EndOfFile
+                | Record::StartSegmentAddress { cs: _, ip: _ }
+                | Record::StartLinearAddress(_) => {
+                    // Types: 0x01, 0x03, 0x05
+                    segment = 0;
+                }
+            }
+
+            // Found a non-data record, so store the current 'Region', if non-zero.
+            if !region.is_empty() {
+                regions.push(region.clone());
+                // Start a new region
+                region.data = Vec::new();
+            }
+            region.base = segment;
+            pointer = 0;
+        }
+        regions.sort();
+        regions
+    }
+
+    pub fn single_region(regions: &[Region]) -> Option<Region> {
+        if regions.is_empty() {
+            return None;
+        }
+        let mut iter = regions.iter();
+        let mut mono = if let Some(prev) = iter.next() {
+            prev.clone()
+        } else {
+            return None;
+        };
+        let mut last = mono.base as usize + mono.data.len();
+
+        loop {
+            let mut curr = if let Some(curr) = iter.next() {
+                curr.clone()
+            } else {
+                // No more 'Region's
+                break;
+            };
+            let next = curr.base as usize;
+            let npad = next - last;
+            let mut pads = vec![0; npad];
+            mono.data.append(&mut pads);
+            last += npad + curr.data.len();
+            mono.data.append(&mut curr.data);
+        }
+        Some(mono)
+    }
+
     pub fn make_packets(&mut self) -> Vec<FirmwareUpdatePacket> {
         let mut packets = Vec::new();
         let mut addr = self.base;
@@ -81,78 +175,6 @@ impl Region {
         }
         packets
     }
-}
-
-/**
- * Build an array of (upto) 64 kB "regions" of firmware (binary-)data.
- */
-pub fn build_regions(records: &mut [Record]) -> Vec<Region> {
-    let mut regions: Vec<Region> = Vec::new();
-    let mut segment: u32 = 0;
-    let mut pointer: u32 = 0;
-    let mut region = Region::new(0);
-
-    for r in records.iter_mut() {
-        match r {
-            Record::Data {
-                offset,
-                ref mut value,
-            } => {
-                // Type: 0x00
-                // Append data to the current region, if contiguous
-                let offset = *offset as u32;
-                let length = value.len() as u32;
-
-                if length > 0 {
-                    if region.data.is_empty() {
-                        // First data, so set full 32-bit address
-                        region.base += offset;
-                    } else if offset != pointer {
-                        // Data isn't contiguous, so store the current region,
-                        // and then start a new region
-                        regions.push(region.clone());
-                        region.base = segment + offset;
-                        region.data = Vec::new();
-                    }
-                    region.data.append(value);
-                    pointer = offset + length;
-                }
-                continue;
-            }
-            Record::EndOfFile => {
-                // Type: 0x01
-                segment = 0;
-            }
-            Record::ExtendedSegmentAddress(base) => {
-                // Type: 0x02
-                segment = (*base as u32) << 4;
-            }
-            Record::StartSegmentAddress { cs: _, ip: _ } => {
-                // Type: 0x03 (ignored, for firmware updates)
-                segment = 0;
-            }
-            Record::ExtendedLinearAddress(base) => {
-                // Type: 0x04
-                // Start a new region (even if contiguous)
-                segment = (*base as u32) << 16;
-            }
-            Record::StartLinearAddress(_) => {
-                // Type: 0x05 (ignored, for firmware updates)
-                segment = 0;
-            }
-        }
-
-        // Found a non-data record, so store the current 'Region', if non-zero.
-        if !region.is_empty() {
-            regions.push(region.clone());
-            // Start a new region
-            region.data = Vec::new();
-        }
-        region.base = segment;
-        pointer = 0;
-    }
-    regions.sort();
-    regions
 }
 
 pub fn merge_regions(regions: &[Region]) -> Vec<Region> {
@@ -196,33 +218,4 @@ pub fn merge_regions(regions: &[Region]) -> Vec<Region> {
         }
     }
     result
-}
-
-pub fn single_region(regions: &[Region]) -> Option<Region> {
-    if regions.is_empty() {
-        return None;
-    }
-    let mut iter = regions.iter();
-    let mut mono = if let Some(prev) = iter.next() {
-        prev.clone()
-    } else {
-        return None;
-    };
-    let mut last = mono.base as usize + mono.data.len();
-
-    loop {
-        let mut curr = if let Some(curr) = iter.next() {
-            curr.clone()
-        } else {
-            // No more 'Region's
-            break;
-        };
-        let next = curr.base as usize;
-        let npad = next - last;
-        let mut pads = vec![0; npad];
-        mono.data.append(&mut pads);
-        last += npad + curr.data.len();
-        mono.data.append(&mut curr.data);
-    }
-    Some(mono)
 }
