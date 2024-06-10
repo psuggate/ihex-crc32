@@ -137,7 +137,7 @@ impl Region {
         Some(mono)
     }
 
-    pub fn make_packets(&mut self) -> Vec<FirmwareUpdatePacket> {
+    pub fn to_packets(&mut self) -> Vec<FirmwareUpdatePacket> {
         let mut packets = Vec::new();
         let mut addr = self.base;
         let mut iter = self.data.chunks_exact(MAX_DATA_LENGTH);
