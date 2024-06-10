@@ -1,8 +1,28 @@
 pub(crate) use hex::*;
 pub(crate) mod hex;
+use clap::Parser;
+
+// -- Data types for command-line options -- //
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(
+        short,
+        long,
+        value_name = "FILENAME",
+        default_value = "data/example.hex"
+    )]
+    file: String,
+
+    /// Verbosity of generated output?
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    verbose: u8,
+}
 
 fn main() {
-    let data = std::fs::read_to_string("data/example.hex").unwrap();
+    let args = Args::parse();
+    let path = args.file;
+    let data = std::fs::read_to_string(path).unwrap();
     let reader = ihex::Reader::new_with_options(
         &data,
         ihex::ReaderOptions {
@@ -34,7 +54,7 @@ fn main() {
         println!("\nBuild HEX mono-region");
         println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
 
-        let packets = r.make_packets();
+        let packets = r.to_packets();
         if !packets.is_empty() {
             println!("\nFound {} HEX packets", packets.len());
         }

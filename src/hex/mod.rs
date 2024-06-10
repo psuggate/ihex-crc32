@@ -12,7 +12,7 @@ pub fn make_packets(regions: &mut [Region]) -> Vec<FirmwareUpdatePacket> {
     let mut packets = Vec::new();
 
     for r in regions.iter_mut() {
-        let mut fwups = r.make_packets();
+        let mut fwups = r.to_packets();
         packets.append(&mut fwups);
     }
     packets
