@@ -19,6 +19,15 @@ struct Args {
     verbose: u8,
 }
 
+#[allow(unused)]
+pub fn test_checksum() {
+    const BYTES: [u8; 12] = [
+        0x08, 0x07, 0xf8, 0x00, 0x04, 0xf0, 0x3c, 0xfa, 0x69, 0x46, 0x1a, 0x48,
+    ];
+    let cs = hex::hexcrc::ihex_checksum(&BYTES);
+    println!("Checksum: {:02x}", cs);
+}
+
 fn main() {
     let args = Args::parse();
     let path = args.file;
@@ -82,6 +91,7 @@ fn main() {
         }
         packets
     };
+
     let update = FirmwareUpdate::new(packets);
     println!("\nFirmware update:");
     println!(" - Length: {}", update.len());

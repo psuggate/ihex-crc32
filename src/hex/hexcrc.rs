@@ -1,4 +1,5 @@
 use crate::packet::FirmwareUpdatePacket;
+use std::num::Wrapping;
 
 /**
  * STM32G4xx default CRC32 polynomial.
@@ -48,4 +49,43 @@ pub fn calc_ccitt_crc(data: &[u8], size: u32) -> u16 {
     }
 
     crc
+}
+
+#[allow(unused)]
+pub fn ihex_checksum(data: &[u8]) -> u8 {
+    let mut cs: Wrapping<u8> = Wrapping(0);
+    for x in data.iter() {
+        cs += Wrapping(*x);
+    }
+    cs = (!cs) + Wrapping(1);
+    cs.0
+}
+
+//----------------------------------------------------------------------------
+// Tests
+//----------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::ihex_checksum;
+
+    const TEST_LINE: &str = ":1007F80004F03CFA69461A48FFF70AFE694604F114";
+    const TEST_DATA: [u8; 21] = [
+        0x10, 0x07, 0xf8, 0x00, 0x04, 0xf0, 0x3c, 0xfa, 0x69, 0x46, 0x1a, 0x48, 0xff, 0xf7, 0x0a,
+        0xfe, 0x69, 0x46, 0x04, 0xf1, 0x14,
+    ];
+
+    #[allow(unused)]
+    fn make_test_data() -> Vec<u8> {
+        return TEST_LINE.as_bytes().to_vec();
+    }
+
+    #[test]
+    fn checksum_implementation_matches_spec() {
+        let tdata: Vec<u8> = TEST_DATA.to_vec();
+        let end = tdata.len() - 1;
+        let start = &tdata[0..end];
+        let last: u8 = tdata[end];
+        assert!(ihex_checksum(start) == last);
+    }
 }

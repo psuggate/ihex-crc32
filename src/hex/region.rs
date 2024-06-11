@@ -149,11 +149,13 @@ impl Region {
                 packets.push(fwup);
                 addr += MAX_DATA_LENGTH as u32;
             } else {
+                // Pad to 8-byte-aligned sizes, for STM32G4xx
                 let mut last = Vec::with_capacity(MAX_DATA_LENGTH);
                 last.extend(iter.remainder());
+                let mut pads = vec![0; last.len() & 0x07];
+                last.append(&mut pads);
                 let size = last.len();
                 assert!(size & 0x7 == 0);
-
                 if size > 0 {
                     last.resize(MAX_DATA_LENGTH, 0);
                     let data: [u8; MAX_DATA_LENGTH] = last.try_into().unwrap();
