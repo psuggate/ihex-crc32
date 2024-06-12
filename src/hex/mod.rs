@@ -1,3 +1,5 @@
+pub use append::*;
+pub mod append;
 // pub use hexcrc::*;
 pub mod hexcrc;
 pub use region::*;

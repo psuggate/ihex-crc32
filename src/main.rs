@@ -14,6 +14,9 @@ struct Args {
     )]
     file: String,
 
+    #[arg(short, long, value_name = "INCLUDE_FILE")]
+    include: Option<String>,
+
     /// Verbosity of generated output?
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
@@ -26,6 +29,14 @@ pub fn test_checksum() {
     ];
     let cs = hex::hexcrc::ihex_checksum(&BYTES);
     println!("Checksum: {:02x}", cs);
+}
+
+#[allow(unused)]
+pub fn test_stm32crc() {
+    const STR: &str = "A test-string for CRC32 checking\n";
+    let crc = crc::Crc::<u32>::new(&hex::hexcrc::CUSTOM_ALG);
+    let val = crc.checksum(STR.as_bytes());
+    println!("STM32CRC: {:08x} (len = {})", val, STR.len());
 }
 
 fn main() {
@@ -97,4 +108,8 @@ fn main() {
     println!(" - Length: {}", update.len());
     println!(" - CRC32:  0x{:08X}", update.crc32());
     println!();
+
+    if let Some(filename) = args.include {
+        to_include_file(&update, &filename);
+    }
 }
