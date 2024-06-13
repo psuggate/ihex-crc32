@@ -55,16 +55,20 @@ fn main() {
     if !regions.is_empty() {
         println!("\nFound {} HEX regions", regions.len());
     }
-    for r in regions.iter() {
-        println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
+    if args.verbose > 0 {
+        for r in regions.iter() {
+            println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
+        }
     }
 
     let mut regions = merge_regions(&regions);
-    if !regions.is_empty() {
-        println!("\nFound {} HEX regions", regions.len());
-    }
-    for r in regions.iter() {
-        println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
+    if args.verbose > 0 {
+        if !regions.is_empty() {
+            println!("\nFound {} HEX regions", regions.len());
+        }
+        for r in regions.iter() {
+            println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
+        }
     }
 
     let packets = if let Some(mut r) = Region::single_region(&regions) {
@@ -75,30 +79,34 @@ fn main() {
         println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
 
         let packets = r.to_packets();
-        if !packets.is_empty() {
+        if args.verbose > 0 && !packets.is_empty() {
             println!("\nFound {} HEX packets", packets.len());
         }
-        for p in packets.iter() {
-            println!(
-                " - Packet: ADDR = {:08x}, SIZE = {}, CRC16 = 0x{:04X}",
-                p.address(),
-                p.len(),
-                p.crc16()
-            );
+        if args.verbose > 1 {
+            for p in packets.iter() {
+                println!(
+                    " - Packet: ADDR = {:08x}, SIZE = {}, CRC16 = 0x{:04X}",
+                    p.address(),
+                    p.len(),
+                    p.crc16()
+                );
+            }
         }
         packets
     } else {
         let packets = make_packets(&mut regions);
-        if !packets.is_empty() {
+        if args.verbose > 0 && !packets.is_empty() {
             println!("\nFound {} HEX packets", packets.len());
         }
-        for p in packets.iter() {
-            println!(
-                " - Packet: ADDR = {:08x}, SIZE = {}, CRC16 = 0x{:04X}",
-                p.address(),
-                p.len(),
-                p.crc16()
-            );
+        if args.verbose > 1 {
+            for p in packets.iter() {
+                println!(
+                    " - Packet: ADDR = {:08x}, SIZE = {}, CRC16 = 0x{:04X}",
+                    p.address(),
+                    p.len(),
+                    p.crc16()
+                );
+            }
         }
         packets
     };
@@ -110,6 +118,9 @@ fn main() {
     println!();
 
     if let Some(filename) = args.include {
+        if args.verbose > 0 {
+            println!("\nWriting '{}'", &filename);
+        }
         to_include_file(&update, &filename);
     }
 }

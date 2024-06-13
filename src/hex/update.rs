@@ -27,4 +27,7 @@ impl FirmwareUpdate {
     pub fn crc32(&self) -> u32 {
         self.crc32
     }
+    pub fn packets(&self) -> &[FirmwareUpdatePacket] {
+        &self.packets
+    }
 }
