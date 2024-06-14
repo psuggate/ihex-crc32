@@ -17,14 +17,16 @@ const HEADER_COMMENT: &str = "/**
  * The data can also be generated with the following command:
  *   xxd -i adi_boot_fw/Release/adi_boot_fw.bin > temp.h
  *
- * Note: the image size is much larger, using this method.
+ * Note: you need to make the BIN file manually, using:
+ *   arm-none-eabi-objcopy -O binary adi_boot_fw/Release/adi_boot_fw.elf \\
+ *       adi_boot_fw.bin
  */\n";
 
 const HEADER_INCLUDE: &str = "\n#pragma once\n#include <stdint.h>\n\n";
 
 const CRC32_COMMENT: &str = "/**
  * Note(s):
- *  - after bootloader v1.2.0, CRC32 verification is required for firmware;
+ *  - after bootloader v1.1.0, CRC32 verification is required for firmware;
  *  - there is also CRC32 generator: 'util/fwcrc32.c', within the Lt Sensors
  *    firmware Git repository, and this can be built using 'make', if a suitable
  *    GNU build environment has been set up;
@@ -37,7 +39,7 @@ const MAX_COLUMNS: usize = 12;
 
 // Global (and lazily-initialised) store for all device labels, and counters
 lazy_static! {
-    pub static ref HEX_TABLE: String = make_hex_table();
+    static ref HEX_TABLE: String = make_hex_table();
 }
 
 fn make_hex_table() -> String {
@@ -103,4 +105,12 @@ pub fn to_include_file(update: &FirmwareUpdate, filename: &str) {
     contents.push_str(IMAGE_COMPLETE);
 
     std::fs::write(filename, contents).unwrap()
+}
+
+pub fn to_binary_file(update: &FirmwareUpdate, filename: &str) {
+    let mut bytes: Vec<u8> = Vec::with_capacity(update.len());
+    for p in update.packets() {
+        bytes.append(&mut p.to_vec());
+    }
+    std::fs::write(filename, &bytes).unwrap()
 }

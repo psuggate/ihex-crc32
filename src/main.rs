@@ -9,13 +9,16 @@ struct Args {
     #[arg(
         short,
         long,
-        value_name = "FILENAME",
+        value_name = "FILE.HEX",
         default_value = "data/example.hex"
     )]
     file: String,
 
-    #[arg(short, long, value_name = "INCLUDE_FILE")]
+    #[arg(short, long, value_name = "FILE.H")]
     include: Option<String>,
+
+    #[arg(short, long, value_name = "FILE.BIN")]
+    binary: Option<String>,
 
     /// Verbosity of generated output?
     #[arg(short, long, action = clap::ArgAction::Count)]
@@ -122,5 +125,11 @@ fn main() {
             println!("\nWriting '{}'", &filename);
         }
         to_include_file(&update, &filename);
+    }
+    if let Some(filename) = args.binary {
+        if args.verbose > 0 {
+            println!("\nWriting '{}'", &filename);
+            to_binary_file(&update, &filename);
+        }
     }
 }

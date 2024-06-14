@@ -1,4 +1,4 @@
-pub use append::*;
+pub use append::{to_binary_file, to_include_file};
 pub mod append;
 // pub use hexcrc::*;
 pub mod hexcrc;
