@@ -20,6 +20,9 @@ struct Args {
     #[arg(short, long, value_name = "FILE.BIN")]
     binary: Option<String>,
 
+    #[arg(short, long)]
+    append_crc: bool,
+
     /// Verbosity of generated output?
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
@@ -81,7 +84,7 @@ fn main() {
         println!("\nBuild HEX mono-region");
         println!(" - Region: ADDR = {:08x}, SIZE = {}", r.address(), r.len());
 
-        let packets = r.to_packets();
+        let packets = r.to_packets(!args.append_crc);
         if args.verbose > 0 && !packets.is_empty() {
             println!("\nFound {} HEX packets", packets.len());
         }
@@ -129,7 +132,7 @@ fn main() {
     if let Some(filename) = args.binary {
         if args.verbose > 0 {
             println!("\nWriting '{}'", &filename);
-            to_binary_file(&update, &filename);
+            to_binary_file(&update, &filename, args.append_crc);
         }
     }
 }

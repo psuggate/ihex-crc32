@@ -137,7 +137,7 @@ impl Region {
         Some(mono)
     }
 
-    pub fn to_packets(&mut self) -> Vec<FirmwareUpdatePacket> {
+    pub fn to_packets(&mut self, align64: bool) -> Vec<FirmwareUpdatePacket> {
         let mut packets = Vec::new();
         let mut addr = self.base;
         let mut iter = self.data.chunks_exact(MAX_DATA_LENGTH);
@@ -152,10 +152,12 @@ impl Region {
                 // Pad to 8-byte-aligned sizes, for STM32G4xx
                 let mut last = Vec::with_capacity(MAX_DATA_LENGTH);
                 last.extend(iter.remainder());
-                let mut pads = vec![0; last.len() & 0x07];
-                last.append(&mut pads);
+                if align64 {
+                    let mut pads = vec![0; last.len() & 0x07];
+                    last.append(&mut pads);
+                    assert!(last.len() & 0x7 == 0);
+                }
                 let size = last.len();
-                assert!(size & 0x7 == 0);
                 if size > 0 {
                     last.resize(MAX_DATA_LENGTH, 0);
                     let data: [u8; MAX_DATA_LENGTH] = last.try_into().unwrap();

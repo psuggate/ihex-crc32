@@ -107,10 +107,36 @@ pub fn to_include_file(update: &FirmwareUpdate, filename: &str) {
     std::fs::write(filename, contents).unwrap()
 }
 
-pub fn to_binary_file(update: &FirmwareUpdate, filename: &str) {
-    let mut bytes: Vec<u8> = Vec::with_capacity(update.len());
+pub fn to_binary_file(update: &FirmwareUpdate, filename: &str, append_crc: bool) {
+    let len: usize = if append_crc {
+        (update.len() + 11) & !0x07
+    } else {
+        (update.len() + 7) & !0x07
+    };
+    let alg = crc::Crc::<u32>::new(&super::hexcrc::CUSTOM_ALG);
+    let mut dig = alg.digest();
+    let mut bytes: Vec<u8> = Vec::with_capacity(len);
     for p in update.packets() {
-        bytes.append(&mut p.to_vec());
+        let mut dat = p.to_vec();
+        dig.update(&dat);
+        bytes.append(&mut dat);
+    }
+    assert!(update.crc32() == dig.finalize());
+    if append_crc {
+        let crc = update.crc32();
+        unsafe {
+            println!(
+                "Appending '0x{:08X}ul' to the Lt Sensor bootloader (length = {})",
+                crc, len
+            );
+            let crc_bytes: [u8; 4] = std::mem::transmute::<u32, [u8; 4]>(crc);
+            // Check that the host system is Little Endian
+            assert!(crc_bytes[0] as u32 == crc & 0x0ff);
+            bytes.extend(crc_bytes);
+        };
+    }
+    while bytes.len() < len {
+        bytes.push(0);
     }
     std::fs::write(filename, &bytes).unwrap()
 }
