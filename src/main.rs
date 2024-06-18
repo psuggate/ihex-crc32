@@ -127,7 +127,7 @@ fn main() {
         if args.verbose > 0 {
             println!("\nWriting '{}'", &filename);
         }
-        to_include_file(&update, &filename);
+        to_include_file(&update, &filename, args.append_crc);
     }
     if let Some(filename) = args.binary {
         if args.verbose > 0 {

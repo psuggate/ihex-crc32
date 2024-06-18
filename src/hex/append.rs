@@ -1,15 +1,18 @@
 use lazy_static::lazy_static;
 
-use super::packet::{FirmwareUpdatePacket, MAX_DATA_LENGTH};
 use super::update::FirmwareUpdate;
 
+//
+// Todo:
+//  - add the actual command-line options into this comment;
+//
 const HEADER_COMMENT: &str = "/**
  * This file contains the binary data of bootloader firmware image, so that the
  * Lt Sensor application firmware can update the bootloader, if needed.
  *
  * This file has been generated automatically, via:
  *  cargo run -- -f $(LTFW)/adi_boot_fw/Release/adi_boot_fw.hex \\
- *               -i $(LTFW)/adi_fw/Inc/adiBootloaderFirmware.h
+ *               -i $(LTFW)/adi_fw/Inc/boot_fw_image.h --append-crc
  *
  * See:
  *  https://github.com/psuggate/ihex-crc32.git
@@ -51,10 +54,14 @@ fn make_hex_table() -> String {
     table
 }
 
-fn to_bytes(packet: &FirmwareUpdatePacket, col: &mut usize) -> String {
+fn u32_to_u8(val: u32) -> [u8; 4] {
+    unsafe { std::mem::transmute::<u32, [u8; 4]>(val) }
+}
+
+fn hex_bytes(values: &[u8]) -> String {
     let mut bytes: String = "".to_string();
-    let data = packet.to_vec();
-    let mut iter = data.iter();
+    let mut iter = values.iter();
+    let mut col = 0;
 
     if let Some(x) = iter.next() {
         let s = (*x) as usize * 4;
@@ -63,10 +70,10 @@ fn to_bytes(packet: &FirmwareUpdatePacket, col: &mut usize) -> String {
     }
 
     for x in iter {
-        *col += 1;
-        if *col == MAX_COLUMNS {
+        col += 1;
+        if col == MAX_COLUMNS {
             bytes.push_str(",\n\t");
-            *col = 0;
+            col = 0;
         } else {
             bytes.push_str(", ");
         }
@@ -75,27 +82,30 @@ fn to_bytes(packet: &FirmwareUpdatePacket, col: &mut usize) -> String {
         bytes.push_str(&HEX_TABLE[s..e]);
     }
 
-    if packet.len() >= MAX_DATA_LENGTH {
-        *col += 1;
-        if *col == MAX_COLUMNS {
-            bytes.push_str(",\n\t");
-            *col = 0;
-        } else {
-            bytes.push_str(", ");
-        }
-    }
-
     bytes
 }
 
-pub fn to_include_file(update: &FirmwareUpdate, filename: &str) {
-    let crc32 = update.crc32();
-    let mut bytes: String = "".to_string();
-    let mut col: usize = 0;
+pub fn to_include_file(update: &FirmwareUpdate, filename: &str, append_crc: bool) {
+    let alg = crc::Crc::<u32>::new(&super::hexcrc::CUSTOM_ALG);
+    let mut dig = alg.digest();
+    let mut raw: Vec<u8> = Vec::with_capacity(update.len() + 4);
+
     for p in update.packets() {
-        let bs = to_bytes(p, &mut col);
-        bytes.push_str(&bs);
+        let mut dat = p.to_vec();
+        dig.update(&dat);
+        raw.append(&mut dat);
     }
+
+    let crc32: u32 = if append_crc {
+        let bs = u32_to_u8(update.crc32());
+        dig.update(&bs);
+        raw.extend(&bs);
+        dig.finalize()
+    } else {
+        update.crc32()
+    };
+
+    let bytes: String = hex_bytes(&raw);
     let mut contents: String = HEADER_COMMENT.to_string();
     contents.push_str(HEADER_INCLUDE);
     contents.push_str(CRC32_COMMENT);
@@ -124,16 +134,14 @@ pub fn to_binary_file(update: &FirmwareUpdate, filename: &str, append_crc: bool)
     assert!(update.crc32() == dig.finalize());
     if append_crc {
         let crc = update.crc32();
-        unsafe {
-            println!(
-                "Appending '0x{:08X}ul' to the Lt Sensor bootloader (length = {})",
-                crc, len
-            );
-            let crc_bytes: [u8; 4] = std::mem::transmute::<u32, [u8; 4]>(crc);
-            // Check that the host system is Little Endian
-            assert!(crc_bytes[0] as u32 == crc & 0x0ff);
-            bytes.extend(crc_bytes);
-        };
+        let byt = u32_to_u8(crc);
+        println!(
+            "Appending '0x{:08X}ul' to the Lt Sensor bootloader (length = {})",
+            crc, len
+        );
+        // Check that the host system is Little Endian
+        assert!(byt[0] as u32 == crc & 0x0ff);
+        bytes.extend(&byt);
     }
     while bytes.len() < len {
         bytes.push(0);
