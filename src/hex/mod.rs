@@ -1,6 +1,5 @@
-pub use append::{to_binary_file, to_include_file};
+pub use append::{to_binary_file, to_include_file, to_include_text};
 pub mod append;
-// pub use hexcrc::*;
 pub mod hexcrc;
 pub use region::*;
 pub mod region;

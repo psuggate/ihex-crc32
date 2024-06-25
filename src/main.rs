@@ -6,18 +6,13 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(
-        short,
-        long,
-        value_name = "FILE.HEX",
-        default_value = "data/example.hex"
-    )]
+    #[arg(short, long, value_name = "IN.HEX", default_value = "data/example.hex")]
     file: String,
 
-    #[arg(short, long, value_name = "FILE.H")]
+    #[arg(short, long, value_name = "OUT.H")]
     include: Option<String>,
 
-    #[arg(short, long, value_name = "FILE.BIN")]
+    #[arg(short, long, value_name = "OUT.BIN")]
     binary: Option<String>,
 
     #[arg(short, long)]
@@ -123,16 +118,20 @@ fn main() {
     println!(" - CRC32:  0x{:08X}", update.crc32());
     println!();
 
+    if args.verbose > 1 {
+        println!("{}", to_include_text(&update, args.append_crc));
+    }
+
     if let Some(filename) = args.include {
         if args.verbose > 0 {
             println!("\nWriting '{}'", &filename);
         }
-        to_include_file(&update, &filename, args.append_crc);
+        to_include_file(&filename, &update, args.append_crc);
     }
     if let Some(filename) = args.binary {
         if args.verbose > 0 {
             println!("\nWriting '{}'", &filename);
-            to_binary_file(&update, &filename, args.append_crc);
+            to_binary_file(&filename, &update, args.append_crc);
         }
     }
 }

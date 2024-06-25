@@ -54,10 +54,6 @@ fn make_hex_table() -> String {
     table
 }
 
-fn u32_to_u8(val: u32) -> [u8; 4] {
-    unsafe { std::mem::transmute::<u32, [u8; 4]>(val) }
-}
-
 fn hex_bytes(values: &[u8]) -> String {
     let mut bytes: String = "".to_string();
     let mut iter = values.iter();
@@ -85,7 +81,7 @@ fn hex_bytes(values: &[u8]) -> String {
     bytes
 }
 
-pub fn to_include_file(update: &FirmwareUpdate, filename: &str, append_crc: bool) {
+pub fn to_include_text(update: &FirmwareUpdate, append_crc: bool) -> String {
     let alg = crc::Crc::<u32>::new(&super::hexcrc::CUSTOM_ALG);
     let mut dig = alg.digest();
     let mut raw: Vec<u8> = Vec::with_capacity(update.len() + 4);
@@ -97,7 +93,7 @@ pub fn to_include_file(update: &FirmwareUpdate, filename: &str, append_crc: bool
     }
 
     let crc32: u32 = if append_crc {
-        let bs = u32_to_u8(update.crc32());
+        let bs = update.crc32().to_ne_bytes();
         dig.update(&bs);
         raw.extend(&bs);
         dig.finalize()
@@ -113,11 +109,15 @@ pub fn to_include_file(update: &FirmwareUpdate, filename: &str, append_crc: bool
     contents.push_str(IMAGE_DECLARE);
     contents.push_str(&bytes);
     contents.push_str(IMAGE_COMPLETE);
-
-    std::fs::write(filename, contents).unwrap()
+    contents
 }
 
-pub fn to_binary_file(update: &FirmwareUpdate, filename: &str, append_crc: bool) {
+pub fn to_include_file(filename: &str, update: &FirmwareUpdate, append_crc: bool) {
+    let bytes = to_include_text(update, append_crc);
+    std::fs::write(filename, &bytes).unwrap()
+}
+
+pub fn to_binary_file(filename: &str, update: &FirmwareUpdate, append_crc: bool) {
     let len: usize = if append_crc {
         (update.len() + 11) & !0x07
     } else {
@@ -134,7 +134,7 @@ pub fn to_binary_file(update: &FirmwareUpdate, filename: &str, append_crc: bool)
     assert!(update.crc32() == dig.finalize());
     if append_crc {
         let crc = update.crc32();
-        let byt = u32_to_u8(crc);
+        let byt = update.crc32().to_ne_bytes();
         println!(
             "Appending '0x{:08X}ul' to the Lt Sensor bootloader (length = {})",
             crc, len
