@@ -131,7 +131,7 @@ fn main() {
     if let Some(filename) = args.binary {
         if args.verbose > 0 {
             println!("\nWriting '{}'", &filename);
-            to_binary_file(&filename, &update, args.append_crc);
         }
+        to_binary_file(&filename, &update, args.append_crc);
     }
 }
